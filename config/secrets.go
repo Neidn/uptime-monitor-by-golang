@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"strings"
 )
@@ -12,11 +13,14 @@ func GetSecret(key string) string {
 	secretContext := os.Getenv(SecretContextKey)
 
 	err := json.Unmarshal([]byte(secretContext), &secrets)
+
 	if err != nil {
-		return ""
+		return os.Getenv(key)
 	}
 
 	secret, ok := secrets[key]
+
+	log.Println("ok", ok)
 
 	if !ok {
 		return os.Getenv(key)
