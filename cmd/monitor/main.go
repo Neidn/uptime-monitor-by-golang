@@ -30,7 +30,11 @@ func run(wait *sync.WaitGroup) {
 	}
 
 	// GetUptimeMonitorVersion() is a function from workflows.go
-	version := GetUptimeMonitorVersion(token)
+	version, err := GetUptimeMonitorVersion(token)
+	if err != nil {
+		log.Println("Error getting version", err)
+		return
+	}
 
 	log.Printf(`
 🔼 Uptime Monitor @%s

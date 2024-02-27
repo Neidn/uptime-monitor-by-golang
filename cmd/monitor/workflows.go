@@ -1,13 +1,31 @@
 package main
 
+import (
+	"context"
+	"github.com/google/go-github/v59/github"
+	"log"
+)
+
 var release string
 
-func GetUptimeMonitorVersion(token string) string {
+func GetUptimeMonitorVersion(token string) (string, error) {
 	if release != "" {
-		return release
+		return release, nil
 	}
 
-	_, _ = GithubClient(token)
+	client := GithubClient(token)
 
-	return "v1.0.0"
+	opts := &github.ListOptions{
+		PerPage: 1,
+		Page:    1,
+	}
+
+	repositoryReleases, _, err := client.Repositories.ListReleases(context.Background(), "Neidn", "uptime-monitor-by-golang", opts)
+
+	if err != nil {
+		log.Println(err)
+		return "", err
+	}
+
+	return repositoryReleases[0].GetTagName(), nil
 }
