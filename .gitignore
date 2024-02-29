@@ -24,4 +24,5 @@ go.work
 test/output
 .env
 history
-*.yml
+.upptimerc.yml
+upptimerc.yml
