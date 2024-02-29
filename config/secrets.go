@@ -29,20 +29,32 @@ func GetSecret(key string) string {
 	return secret
 }
 
-func GetOwnerRepo() map[string]string {
+func GetOwnerRepo() (string, string) {
 	repos := GetSecret(GithubRepoKey)
 	if repos == "" {
-		return nil
+		return "", ""
 	}
 
 	result := strings.Split(repos, "/")
 	if len(result) != 2 {
-		return nil
+		return "", ""
 	}
 
-	return map[string]string{
-		"owner": result[0],
-		"repo":  result[1],
+	return result[0], result[1]
+
+}
+
+func GetToken() string {
+	_TokenKey := []string{"GITHUB_TOKEN", "token", "GH_PAT"}
+	var token string
+
+	for _, key := range _TokenKey {
+		token = GetSecret(key)
+		if token != "" {
+			log.Printf("Token found: %s, %s", key, token)
+			break
+		}
 	}
 
+	return token
 }

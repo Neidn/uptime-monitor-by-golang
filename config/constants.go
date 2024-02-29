@@ -1,9 +1,16 @@
 package config
 
+const OwnerName = "Neidn"
+const MonitorRepositoryName = "uptime-monitor-by-golang"
+const RepositoryName = "uptime"
+
+const GithubActionsInputKey = "command"
+
 const SecretContextKey = "SECRETS_CONTEXT"
 const GithubRepoKey = "GITHUB_REPOSITORY"
 
-const ConfigFile = ".github/uptime.yml"
+const ConfigYaml = ".uptimerc.yml"
+const HistoryYamlDir = "history"
 
 const GraphsCiSchedule = "0 0 * * *"
 const ResponseTimeCiSchedule = "0 23 * * *"
@@ -19,3 +26,6 @@ const RandomMinDefault = "0"
 const RandomMaxDefault = "1000000"
 const DynamicAlphanumericString = "$DynamicAlphanumericString"
 const DynamicStringLengthDefault = "10"
+
+const TcpPingDefaultCount = 5
+const MaxResponseTime = 60000
