@@ -46,7 +46,7 @@ type statusWebsite struct {
 	SingleCommit bool     `yaml:"singleCommit"`
 }
 
-type commitMessage struct {
+type CommitMessage struct {
 	Content      string `yaml:"content"`
 	Summary      string `yaml:"summary"`
 	StatusChange string `yaml:"statusChange"`
@@ -56,7 +56,7 @@ type commitMessage struct {
 }
 
 type i18n struct {
-	PrefixStatus          prefixStatus `yaml:"prefixStatus"`
+	PrefixStatus          PrefixStatus `yaml:"prefixStatus"`
 	Url                   string       `yaml:"url"`
 	Status                string       `yaml:"status"`
 	History               string       `yaml:"history"`
@@ -79,7 +79,7 @@ type timeStruct struct {
 	Year  string `yaml:"year"`
 }
 
-type prefixStatus struct {
+type PrefixStatus struct {
 	Up       string `yaml:"up"`
 	Down     string `yaml:"down"`
 	Degraded string `yaml:"degraded"`
@@ -99,11 +99,11 @@ type UptimeConfig struct {
 	SkipHomepageUpdate      bool          `yaml:"skipHomepageUpdate"`
 	SkipDeletedIssues       bool          `yaml:"skipDeletedIssues"`
 	SkipPoweredByReadme     bool          `yaml:"skipPoweredByReadme"`
-	CommitMessages          commitMessage `yaml:"commit-messages"`
+	CommitMessages          CommitMessage `yaml:"commit-messages"`
 	SummaryStartHtmlComment string        `yaml:"summaryStartHtmlComment"`
 	SummaryEndHtmlComment   string        `yaml:"summaryEndHtmlComment"`
 	LiveStatusHtmlComment   string        `yaml:"liveStatusHtmlComment"`
-	CommitPrefixStatus      prefixStatus  `yaml:"commit-prefix-status"`
+	CommitPrefixStatus      PrefixStatus  `yaml:"commit-prefix-status"`
 	i18n                    i18n          `yaml:"i18n"`
 }
 

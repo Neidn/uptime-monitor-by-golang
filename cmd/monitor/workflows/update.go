@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"fmt"
 	"github.com/Neidn/uptime-monitor-by-golang/cmd/monitor/lib"
 	"github.com/Neidn/uptime-monitor-by-golang/config"
 	"github.com/google/go-github/v59/github"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -152,11 +154,56 @@ func Update(shouldCommit bool) {
 			}
 		}
 
-		if shouldCommit {
+		//if shouldCommit || currentStatus != testResult.Status {
+		if true {
+			siteHistory.Status = testResult.Status
+			siteHistory.Code = testResult.Result.HttpCode
+			siteHistory.ResponseTime = testResult.ResponseTime
+			siteHistory.LastUpdated = time.Now().Format(time.RFC3339)
+			siteHistory.StartTime = startTime.Format(time.RFC3339)
+			siteHistory.Generator = fmt.Sprintf("%s %s", config.RepositoryName, config.Generator)
 
+			// Write the history
+			err = WriteSiteHistory(slugName, siteHistory)
+			if err != nil {
+				log.Println("Error writing site history", err)
+				continue
+			}
+
+			// Commit the changes
+			var message string
+
+			if defaultConfig.CommitMessages.StatusChange != "" {
+				message = defaultConfig.CommitMessages.StatusChange
+			} else {
+				message = config.DefaultCommitMessage
+			}
+
+			message = ReplaceCommitMessage(
+				message,
+				defaultConfig.CommitPrefixStatus,
+				testResult,
+				site,
+				config.RepositoryName,
+			)
+			log.Println("Commit message", message)
+
+			authorName := defaultConfig.CommitMessages.AuthorName
+			if authorName == "" {
+				authorName = *config.AuthorName
+			}
+			authorEmail := defaultConfig.CommitMessages.AuthorEmail
+			if authorEmail == "" {
+				authorEmail = *config.AuthorEmail
+			}
+			//lib.SendCommit(message, authorName, authorEmail)
+
+			//err = lib.SendCommit(client, owner, repo, "main", message, []byte{})
+			//if err != nil {
+			//	log.Println("Error sending commit", err)
+			//	continue
+			//}
 		}
-
-		break
 	}
 }
 
@@ -202,4 +249,64 @@ func ReadSiteHistory(slugName string) (*SiteHistory, error) {
 	}
 
 	return &siteHistory, nil
+}
+
+func WriteSiteHistory(slugName string, siteHistory *SiteHistory) error {
+	log.Println("siteHistory", siteHistory)
+
+	historyBody := fmt.Sprintf(`url: %s
+status: %s
+code: %d
+responseTime: %d
+lastUpdated: %s
+startTime: %s
+generator: %s
+`, siteHistory.Url, siteHistory.Status, siteHistory.Code, siteHistory.ResponseTime, siteHistory.LastUpdated, siteHistory.StartTime, siteHistory.Generator)
+
+	_ = os.WriteFile(filepath.Join(config.HistoryYamlDir, slugName+".yml"), []byte(historyBody), 0644)
+
+	return nil
+}
+
+func ReplaceCommitMessage(
+	message string,
+	prefixStatus config.PrefixStatus,
+	performanceTestResult PerformanceTestResult,
+	site config.Site,
+	repositoryName string,
+) string {
+	var prefix string
+	switch performanceTestResult.Status {
+	case StatusUp:
+		if prefixStatus.Up != "" {
+			prefix = prefixStatus.Up
+		} else {
+			prefix = config.DefaultUp
+		}
+		break
+	case StatusDegraded:
+		if prefixStatus.Degraded != "" {
+			prefix = prefixStatus.Degraded
+		} else {
+			prefix = config.DefaultDegraded
+		}
+		break
+	default:
+		if prefixStatus.Down != "" {
+			prefix = prefixStatus.Down
+		} else {
+			prefix = config.DefaultDown
+		}
+
+	}
+	message = strings.ReplaceAll(message, "$PREFIX", prefix)
+
+	message = strings.ReplaceAll(message, "$SITE_NAME", site.Name)
+	message = strings.ReplaceAll(message, "$SITE_URL", site.Url)
+	message = strings.ReplaceAll(message, "$STATUS", performanceTestResult.Status)
+	message = strings.ReplaceAll(message, "$RESPONSE_CODE", fmt.Sprintf("%d", performanceTestResult.Result.HttpCode))
+	message = strings.ReplaceAll(message, "$RESPONSE_TIME", fmt.Sprintf("%d", performanceTestResult.ResponseTime))
+	message = strings.ReplaceAll(message, "$REPOSITORY_NAME", repositoryName)
+
+	return message
 }

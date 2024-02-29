@@ -31,8 +31,9 @@ func run(wait *sync.WaitGroup) {
 🔼 Uptime Monitor @%s
 GitHub-powered uptime monitor and status page by Neidn.
 
-* Source: https://github.com/Neidn/uptime`,
+* Source: %s`,
 		version,
+		config.Generator,
 	)
 
 	command, _ := core.GetInput(config.GithubActionsInputKey)
@@ -68,7 +69,7 @@ GitHub-powered uptime monitor and status page by Neidn.
 
 	default:
 		core.Debug("Starting update template")
-		workflows.Update()
+		workflows.Update(false)
 		return
 	}
 }
