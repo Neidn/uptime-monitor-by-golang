@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 const OwnerName = "Neidn"
 const MonitorRepositoryName = "uptime-monitor-by-golang"
 const RepositoryName = "uptime"
@@ -29,3 +31,6 @@ const DynamicStringLengthDefault = "10"
 
 const TcpPingDefaultCount = 5
 const MaxResponseTime = 60000
+
+const SecondWaitTime = time.Second
+const ThirdWaitTime = time.Second * 10

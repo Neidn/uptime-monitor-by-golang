@@ -2,19 +2,13 @@ package workflows
 
 import (
 	"context"
-	"fmt"
 	"github.com/Neidn/uptime-monitor-by-golang/cmd/monitor/lib"
 	"github.com/Neidn/uptime-monitor-by-golang/config"
 	"github.com/google/go-github/v59/github"
-	"github.com/gorilla/websocket"
-	probing "github.com/prometheus-community/pro-bing"
 	"gopkg.in/yaml.v3"
 	"log"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -28,13 +22,13 @@ type SiteHistory struct {
 	Generator    string `yaml:"generator"`
 }
 
-type PerformanceTest struct {
-	Result       PerformanceTestResult
+type PerformanceTestResult struct {
+	Result       PerformanceTestCode
 	ResponseTime int
 	Status       string // "up" or "down" or "degraded"
 }
 
-type PerformanceTestResult struct {
+type PerformanceTestCode struct {
 	HttpCode int
 }
 
@@ -46,8 +40,7 @@ const (
 	SiteCheckWS      = "ws"
 )
 
-func Update() {
-
+func Update(shouldCommit bool) {
 	log.Println("Update workflow started")
 
 	check := lib.HealthCheck()
@@ -100,6 +93,7 @@ func Update() {
 
 	for _, site := range defaultConfig.Sites {
 		log.Printf("Checking : %s", site.Name)
+		var testResult PerformanceTestResult
 
 		// Delay for custom time
 		if defaultConfig.Delay > 0 {
@@ -111,17 +105,10 @@ func Update() {
 		currentStatus := "unknown"
 		startTime := time.Now()
 
-		siteHistoryFile, err := os.ReadFile(filepath.Join(config.HistoryYamlDir, slugName+".yml"))
+		siteHistory, err := ReadSiteHistory(slugName)
 		if err != nil {
-			log.Println("Error reading history", err)
-			continue
-		}
-
-		siteHistory := SiteHistory{}
-		err = yaml.Unmarshal(siteHistoryFile, &siteHistory)
-		if err != nil {
-			log.Println("Error unmarshalling history", err)
-			continue
+			log.Println("Error reading site history", err)
+			siteHistory = &SiteHistory{}
 		}
 
 		// Get the status of the site
@@ -139,125 +126,80 @@ func Update() {
 
 		log.Println(slugName, "Current status: ", currentStatus, "Start time: ", startTime)
 
-		switch site.Check {
-		case SiteCheckTcpPing:
-			_, err := TcpPingCheck(site)
+		testResult, err = ServerCheck(site)
+		if err != nil {
+			log.Println("Error checking site", err)
+			continue
+		}
+
+		// if the status is not up, check again
+		if testResult.Status != StatusUp {
+			log.Println("Status is not up, checking again")
+			testResult, err = ServerCheck(site)
 			if err != nil {
 				log.Println("Error checking site", err)
 				continue
 			}
-			return
-		case SiteCheckWS:
-			log.Println("Checking ws")
-			WsCheck(site)
-			return
-		default:
-			log.Println("Checking http")
 
-			log.Println("Performance test")
+			// if the status is still not up, check again
+			if testResult.Status != StatusUp {
+				log.Println("Status is still not up, checking again")
+				testResult, err = ServerCheck(site)
+				if err != nil {
+					log.Println("Error checking site", err)
+					continue
+				}
+			}
+		}
+
+		if shouldCommit {
 
 		}
 
 		break
 	}
-
 }
 
-var FailedPerformanceTest = PerformanceTest{
-	Status:       StatusDown,
-	ResponseTime: 0,
-	Result: PerformanceTestResult{
-		HttpCode: 0,
-	},
-}
-
-func TcpPingCheck(site config.Site) (PerformanceTest, error) {
-	address := site.Url
-	status := StatusUp
-	var responseTime time.Duration
-	ip := net.ParseIP(site.Url)
-
-	if ip == nil {
-		_url, err := url.Parse(site.Url)
+func ServerCheck(site config.Site) (PerformanceTestResult, error) {
+	switch site.Check {
+	case SiteCheckTcpPing:
+		tcpPingCheckResult, err := TcpPingCheck(site)
 		if err != nil {
-			log.Println("Error parsing URL", err)
-			return FailedPerformanceTest, err
+			log.Println("Error checking site using tcp ping", err)
+			return PerformanceTestResult{}, err
 		}
+		return tcpPingCheckResult, nil
 
-		_hostname := strings.TrimPrefix(_url.Hostname(), "www.")
-
-		ipList, err := net.LookupIP(_hostname)
+	case SiteCheckWS:
+		wsCheckResult, err := WsCheck(site)
 		if err != nil {
-			log.Println("Error looking up IP", err)
-			return PerformanceTest{}, err
+			log.Println("Error checking site using websocket", err)
+			return PerformanceTestResult{}, err
 		}
 
-		address = ipList[0].String()
-	}
+		return wsCheckResult, nil
 
-	// with specific port
-	if site.Port != 0 {
-		address = fmt.Sprintf("%s:%d", address, site.Port)
-	}
-
-	tcpPing, err := probing.NewPinger(address)
-	defer tcpPing.Stop()
-	if err != nil {
-		log.Println(err)
-		return FailedPerformanceTest, err
-	}
-	tcpPing.Count = config.TcpPingDefaultCount
-
-	tcpPing.OnFinish = func(stats *probing.Statistics) {
-		responseTime = stats.AvgRtt
-
-		if responseTime > time.Duration(config.MaxResponseTime)*time.Millisecond {
-			status = StatusDegraded
+	default:
+		httpResult, err := HttpCheck(site)
+		if err != nil {
+			log.Println("Error checking site using http", err)
+			return PerformanceTestResult{}, err
 		}
+		return httpResult, nil
 	}
-
-	err = tcpPing.Run()
-	if err != nil {
-		return FailedPerformanceTest, err
-	}
-
-	if responseTime < 0 {
-		return FailedPerformanceTest, nil
-	}
-
-	return PerformanceTest{
-		Result: PerformanceTestResult{
-			HttpCode: 200,
-		},
-		ResponseTime: int(responseTime.Milliseconds()),
-		Status:       status,
-	}, nil
 }
 
-func WsCheck(site config.Site) (PerformanceTest, error) {
-	log.Println("Using WebSocket to check site")
-	status := StatusUp
-
-	c, _, err := websocket.DefaultDialer.Dial(site.Url, nil)
+func ReadSiteHistory(slugName string) (*SiteHistory, error) {
+	siteHistoryFile, err := os.ReadFile(filepath.Join(config.HistoryYamlDir, slugName+".yml"))
 	if err != nil {
-		log.Println("Error dialing", err)
-		return FailedPerformanceTest, err
-	}
-	defer c.Close()
-
-	_textMessage := []byte("")
-	if site.Body != "" {
-		_textMessage = []byte(site.Body)
+		return nil, err
 	}
 
-	err = c.WriteMessage(websocket.TextMessage, _textMessage)
+	siteHistory := SiteHistory{}
+	err = yaml.Unmarshal(siteHistoryFile, &siteHistory)
 	if err != nil {
-		log.Println("Error writing message", err)
-		return FailedPerformanceTest, err
+		return nil, err
 	}
 
-	return PerformanceTest{
-		Status:       status,
-		ResponseTime: 0,
-	}, nil
+	return &siteHistory, nil
 }
