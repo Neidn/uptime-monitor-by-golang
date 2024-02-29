@@ -1,0 +1,40 @@
+name: Build CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Setup Go
+        uses: actions/setup-node@v3
+        with:
+          go-version: 1.20
+
+      - name: Install Dependencies
+        run: go mod download
+
+      - name: Run Tests
+        run: go test ./...
+
+      - name: Build Project
+        run: go build -o uptime
+#
+#      - name: Publish Package
+#        uses: stefanzweifel/git-auto-commit-action@v5
+#        with:
+#          commit_message: ":rocket: Deploy new version [skip ci]"
+#          commit_user_name: Neidn
+#          commit_user_email: dty3152@gmail.com
+#          commit_author: Neidn <dty3152@gmail.com>
