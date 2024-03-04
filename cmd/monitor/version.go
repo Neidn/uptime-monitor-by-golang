@@ -15,9 +15,10 @@ func GetUptimeMonitorVersion() (string, error) {
 		return release, nil
 	}
 
-	client := lib.GithubClient()
-	if client == nil {
-		return "", nil
+	client, err := lib.GithubClient()
+	if err != nil {
+		log.Println(err)
+		return "", err
 	}
 
 	opts := &github.ListOptions{

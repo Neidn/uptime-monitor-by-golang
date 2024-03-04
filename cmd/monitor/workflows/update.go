@@ -59,9 +59,9 @@ func Update(shouldCommit bool) {
 	var defaultConfig config.UptimeConfig
 	defaultConfig.GetConfig()
 
-	client := lib.GithubClient()
-	if client == nil {
-		log.Println("Error getting client")
+	client, err := lib.GithubClient()
+	if err != nil {
+		log.Println("Error getting github client", err)
 		return
 	}
 
@@ -210,7 +210,7 @@ func Update(shouldCommit bool) {
 				}
 				log.Println("Found ", len(issues), " issues")
 
-				expected := false
+				_ = false
 				if testResult.Status != StatusUp {
 
 				}

@@ -7,8 +7,8 @@ inputs:
     description: "Command to run (see README for commands)"
     default: "update"
 runs:
-  using: "go"
-  main: "main.go"
+  using: docker
+  main: Dockerfile
 branding:
   icon: "chevron-up"
   color: "green"

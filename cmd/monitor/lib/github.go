@@ -2,20 +2,23 @@ package lib
 
 import (
 	"context"
+	"errors"
 	"github.com/Neidn/uptime-monitor-by-golang/config"
 	"github.com/google/go-github/v59/github"
 	"golang.org/x/oauth2"
+	"log"
 	"os/exec"
 	"strings"
 )
 
 var ctx = context.Background()
 
-func GithubClient() *github.Client {
+func GithubClient() (*github.Client, error) {
 	token := config.GetToken()
 	if token == "" {
-		return nil
+		return nil, errors.New("token not found")
 	}
+	log.Println("token", token)
 
 	tokenService := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},
@@ -24,7 +27,7 @@ func GithubClient() *github.Client {
 
 	client := github.NewClient(tokenClient)
 
-	return client
+	return client, nil
 }
 
 func SendCommit(message string, name string, email string) {
@@ -45,7 +48,7 @@ func GetIssues(client *github.Client, owner string, repo string) ([]*github.Issu
 }
 
 func UpdateMaintenanceEvents(events *[]github.Issue) {
-	metadata := map[string]string{}
+	_ = map[string]string{}
 
 	for _, event := range *events {
 		if event.Body != nil && strings.Contains(*event.Body, "<!--") {
