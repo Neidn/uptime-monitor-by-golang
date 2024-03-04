@@ -1,0 +1,14 @@
+name: "Uptime"
+description: "Uptime monitor and status page powered entirely by GitHub"
+author: "Neidn <https://github.com/Neidn>"
+inputs:
+  command:
+    required: true
+    description: "Command to run (see README for commands)"
+    default: "update"
+runs:
+  using: "go"
+  main: "main.go"
+branding:
+  icon: "chevron-up"
+  color: "green"

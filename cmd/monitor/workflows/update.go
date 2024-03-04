@@ -197,12 +197,25 @@ func Update(shouldCommit bool) {
 				authorEmail = *config.AuthorEmail
 			}
 			//lib.SendCommit(message, authorName, authorEmail)
+			lastCommit := lib.LastCommit()
+			log.Println("Last commit", lastCommit)
 
-			//err = lib.SendCommit(client, owner, repo, "main", message, []byte{})
-			//if err != nil {
-			//	log.Println("Error sending commit", err)
-			//	continue
-			//}
+			if currentStatus != testResult.Status {
+				log.Println("Status changed from", currentStatus, "to", testResult.Status)
+				//hasDelta := false
+				issues, err := lib.GetIssues(client, owner, repo)
+				if err != nil {
+					log.Println("Error getting issues", err)
+					continue
+				}
+				log.Println("Found ", len(issues), " issues")
+
+				expected := false
+				if testResult.Status != StatusUp {
+
+				}
+			}
+
 		}
 	}
 }

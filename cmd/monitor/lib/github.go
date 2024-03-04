@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-github/v59/github"
 	"golang.org/x/oauth2"
 	"os/exec"
+	"strings"
 )
 
 var ctx = context.Background()
@@ -36,4 +37,29 @@ func SendCommit(message string, name string, email string) {
 func LastCommit() string {
 	out, _ := exec.Command("git", "log", "-1", "--pretty=%B").Output()
 	return string(out)
+}
+
+func GetIssues(client *github.Client, owner string, repo string) ([]*github.Issue, error) {
+	issues, _, err := client.Issues.ListByRepo(ctx, owner, repo, nil)
+	return issues, err
+}
+
+func UpdateMaintenanceEvents(events *[]github.Issue) {
+	metadata := map[string]string{}
+
+	for _, event := range *events {
+		if event.Body != nil && strings.Contains(*event.Body, "<!--") {
+			summary := strings.Split(*event.Body, "<!--")[1]
+			summary = strings.Split(summary, "-->")[0]
+
+			lines := strings.Split(summary, "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if strings.Contains(line, ":") {
+
+				}
+			}
+
+		}
+	}
 }
