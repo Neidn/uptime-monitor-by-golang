@@ -24,7 +24,7 @@ func HealthCheck() bool {
 			"https://raw.githubusercontent.com/%s/%s/HEAD/%s",
 			config.OwnerName,
 			config.RepositoryName,
-			config.ConfigYaml,
+			config.UptimeRcYaml,
 		),
 	)
 

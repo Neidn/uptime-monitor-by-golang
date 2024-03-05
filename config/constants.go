@@ -15,9 +15,10 @@ const GithubActionsInputKey = "command"
 
 const SecretContextKey = "SECRETS_CONTEXT"
 const GithubRepoKey = "GITHUB_REPOSITORY"
+const NotificationDownMessageKey = "NOTIFICATION_DOWN_MESSAGE"
 const DefaultCommitMessage = "$PREFIX $SITE_NAME is $STATUS ($RESPONSE_CODE in $RESPONSE_TIME ms) [skip ci] [$REPOSITORY_NAME]"
 
-const ConfigYaml = ".uptimerc.yml"
+const UptimeRcYaml = ".uptimerc.yml"
 const HistoryYamlDir = "history"
 
 const GraphsCiSchedule = "0 0 * * *"

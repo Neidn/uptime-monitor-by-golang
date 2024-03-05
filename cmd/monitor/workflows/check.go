@@ -249,5 +249,10 @@ func avg(responseTimeList []time.Duration) time.Duration {
 	for _, v := range responseTimeList {
 		sum += v
 	}
+
+	if len(responseTimeList) == 0 {
+		return 0
+	}
+
 	return sum / time.Duration(len(responseTimeList))
 }

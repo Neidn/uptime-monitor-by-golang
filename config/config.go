@@ -12,7 +12,7 @@ type Site struct {
 	Url                                string   `yaml:"url"`
 	Port                               int      `yaml:"port"`
 	ExpectedStatusCode                 int      `yaml:"expectedStatusCode"`
-	Assignees                          []int    `yaml:"assignees"`
+	Assignees                          []string `yaml:"assignees"`
 	Headers                            []string `yaml:"headers"`
 	Tags                               []string `yaml:"tags"`
 	Slug                               string   `yaml:"slug"`

@@ -58,3 +58,8 @@ func GetToken() string {
 
 	return token
 }
+
+func GetNotificationDownMessage() string {
+
+	return GetSecret(NotificationDownMessageKey)
+}

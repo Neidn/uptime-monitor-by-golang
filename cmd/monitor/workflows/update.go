@@ -1,16 +1,11 @@
 package workflows
 
 import (
-	"context"
 	"fmt"
 	"github.com/Neidn/uptime-monitor-by-golang/cmd/monitor/lib"
 	"github.com/Neidn/uptime-monitor-by-golang/config"
-	"github.com/google/go-github/v59/github"
-	"gopkg.in/yaml.v3"
 	"log"
-	"os"
-	"path/filepath"
-	"strings"
+	"slices"
 	"time"
 )
 
@@ -65,33 +60,12 @@ func Update(shouldCommit bool) {
 		return
 	}
 
-	opt := &github.IssueListByRepoOptions{
-		State:     "all",
-		Sort:      "created",
-		Direction: "desc",
-		Labels: []string{
-			"maintenance",
-		},
-	}
-
-	events, resp, err := client.Issues.ListByRepo(
-		context.Background(),
-		owner,
-		repo,
-		opt,
-	)
+	ongoingEvents, err := lib.CheckAndCloseMaintenanceEvents(client, owner, repo)
 
 	if err != nil {
-		log.Println("Error getting issues", err)
+		log.Println("Error checking and closing maintenance events", err)
 		return
 	}
-
-	if resp.StatusCode != 200 {
-		log.Println("Error getting issues", resp.Status)
-		return
-	}
-
-	log.Printf("Found ongoing maintenance events: %d", len(events))
 
 	for _, site := range defaultConfig.Sites {
 		log.Printf("Checking : %s", site.Name)
@@ -203,16 +177,69 @@ func Update(shouldCommit bool) {
 			if currentStatus != testResult.Status {
 				log.Println("Status changed from", currentStatus, "to", testResult.Status)
 				//hasDelta := false
-				issues, err := lib.GetIssues(client, owner, repo)
+				issues, err := lib.GetIssues(client, owner, repo, slugName)
 				if err != nil {
 					log.Println("Error getting issues", err)
 					continue
 				}
 				log.Println("Found ", len(issues), " issues")
 
-				_ = false
-				if testResult.Status != StatusUp {
+				expected := false
 
+				switch testResult.Status {
+				case StatusDown:
+					// Check if there is match an ongoing maintenance event's metadata expectedDown with slugName
+					for _, event := range ongoingEvents {
+						if slices.Contains(event.Metadata.ExpectedDown, slugName) {
+							expected = true
+							break
+						}
+					}
+
+				case StatusDegraded:
+					// Check if there is match an ongoing maintenance event's metadata expectedDegraded with slugName
+					for _, event := range ongoingEvents {
+						if slices.Contains(event.Metadata.ExpectedDegraded, slugName) {
+							expected = true
+							break
+						}
+					}
+				}
+
+				//if testResult.Status != StatusUp && !expected {
+				if !expected {
+					if len(issues) > 0 {
+						log.Println("Issue already exists")
+					} else {
+						log.Println("Creating issue")
+						title, body, labels := CreateIssueMessage(owner, repo, slugName, lastCommit, testResult, site)
+						newIssue, err := lib.CreateNewIssue(client, owner, repo, title, body, labels)
+						if err != nil {
+							log.Println("Error creating issue", err)
+							continue
+						}
+
+						log.Println("Issue created", newIssue)
+
+						// Add assignees
+						assignees := append(site.Assignees, defaultConfig.Assignees...)
+						if len(assignees) > 0 {
+							err = lib.AddAssignees(client, owner, repo, *newIssue.Number, assignees)
+							if err != nil {
+								log.Println("Error adding assignees", err)
+							}
+						}
+
+						// Lock the issue
+						err = lib.LockIssue(client, owner, repo, *newIssue.Number)
+						if err != nil {
+							log.Println("Error locking issue", err)
+						}
+
+						log.Println("Opened and locked issue")
+
+						SendNotificationDownMessage(site, testResult, newIssue)
+					}
 				}
 			}
 
@@ -247,79 +274,4 @@ func ServerCheck(site config.Site) (PerformanceTestResult, error) {
 		}
 		return httpResult, nil
 	}
-}
-
-func ReadSiteHistory(slugName string) (*SiteHistory, error) {
-	siteHistoryFile, err := os.ReadFile(filepath.Join(config.HistoryYamlDir, slugName+".yml"))
-	if err != nil {
-		return nil, err
-	}
-
-	siteHistory := SiteHistory{}
-	err = yaml.Unmarshal(siteHistoryFile, &siteHistory)
-	if err != nil {
-		return nil, err
-	}
-
-	return &siteHistory, nil
-}
-
-func WriteSiteHistory(slugName string, siteHistory *SiteHistory) error {
-	log.Println("siteHistory", siteHistory)
-
-	historyBody := fmt.Sprintf(`url: %s
-status: %s
-code: %d
-responseTime: %d
-lastUpdated: %s
-startTime: %s
-generator: %s
-`, siteHistory.Url, siteHistory.Status, siteHistory.Code, siteHistory.ResponseTime, siteHistory.LastUpdated, siteHistory.StartTime, siteHistory.Generator)
-
-	_ = os.WriteFile(filepath.Join(config.HistoryYamlDir, slugName+".yml"), []byte(historyBody), 0644)
-
-	return nil
-}
-
-func ReplaceCommitMessage(
-	message string,
-	prefixStatus config.PrefixStatus,
-	performanceTestResult PerformanceTestResult,
-	site config.Site,
-	repositoryName string,
-) string {
-	var prefix string
-	switch performanceTestResult.Status {
-	case StatusUp:
-		if prefixStatus.Up != "" {
-			prefix = prefixStatus.Up
-		} else {
-			prefix = config.DefaultUp
-		}
-		break
-	case StatusDegraded:
-		if prefixStatus.Degraded != "" {
-			prefix = prefixStatus.Degraded
-		} else {
-			prefix = config.DefaultDegraded
-		}
-		break
-	default:
-		if prefixStatus.Down != "" {
-			prefix = prefixStatus.Down
-		} else {
-			prefix = config.DefaultDown
-		}
-
-	}
-	message = strings.ReplaceAll(message, "$PREFIX", prefix)
-
-	message = strings.ReplaceAll(message, "$SITE_NAME", site.Name)
-	message = strings.ReplaceAll(message, "$SITE_URL", site.Url)
-	message = strings.ReplaceAll(message, "$STATUS", performanceTestResult.Status)
-	message = strings.ReplaceAll(message, "$RESPONSE_CODE", fmt.Sprintf("%d", performanceTestResult.Result.HttpCode))
-	message = strings.ReplaceAll(message, "$RESPONSE_TIME", fmt.Sprintf("%d", performanceTestResult.ResponseTime))
-	message = strings.ReplaceAll(message, "$REPOSITORY_NAME", repositoryName)
-
-	return message
 }
