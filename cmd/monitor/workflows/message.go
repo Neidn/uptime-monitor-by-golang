@@ -2,9 +2,9 @@ package workflows
 
 import (
 	"fmt"
+	"github.com/Neidn/uptime-monitor-by-golang/cmd/monitor/lib"
 	"github.com/Neidn/uptime-monitor-by-golang/config"
 	"github.com/google/go-github/v59/github"
-	"log"
 	"strings"
 )
 
@@ -83,23 +83,25 @@ func CreateIssueMessage(
 	return title, body, labels
 }
 
-func SendNotificationDownMessage(
+func CreateCommentMessage(
+	owner string,
+	repo string,
+	lastCommit string,
+	issue *github.Issue,
 	site config.Site,
-	testResult PerformanceTestResult,
-	newIssue *github.Issue,
-) {
-	downMsg := config.GetNotificationDownMessage()
-
-	if downMsg != "" {
-
-		downMsg = strings.ReplaceAll(downMsg, "$SITE_NAME", site.Name)
-		downMsg = strings.ReplaceAll(downMsg, "$SITE_URL", site.Url)
-		downMsg = strings.ReplaceAll(downMsg, "$ISSUE_URL", newIssue.GetHTMLURL())
-		downMsg = strings.ReplaceAll(downMsg, "$RESPONSE_CODE", fmt.Sprintf("%d", testResult.Result.HttpCode))
+) (commentMsg string) {
+	var issueState string
+	if strings.Contains(*issue.Title, "degraded") {
+		issueState = "performance has improved"
 	} else {
-		downMsg = fmt.Sprintf(`$EMOJI %s (%s) is $STATUS : %s`, site.Name, site.Url, newIssue.GetHTMLURL())
+		issueState = "Site is back up"
 	}
 
-	log.Println("Sending notification down message", downMsg)
+	minutes := lib.ConvertDateToHumanReadableTimeDifference(issue.GetCreatedAt())
 
+	commentMsg = fmt.Sprintf(
+		`**Resolved:** %s %s In [%s](https://github.com/%s/%s/commit/%s) after %s`,
+		site.Name, issueState, lastCommit[:7], owner, repo, lastCommit, minutes,
+	)
+	return
 }

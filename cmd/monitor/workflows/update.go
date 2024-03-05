@@ -128,8 +128,9 @@ func Update(shouldCommit bool) {
 			}
 		}
 
-		//if shouldCommit || currentStatus != testResult.Status {
-		if true {
+		if !shouldCommit && currentStatus == testResult.Status {
+			log.Println("Skipping commit, status is ", testResult.Status)
+		} else {
 			siteHistory.Status = testResult.Status
 			siteHistory.Code = testResult.Result.HttpCode
 			siteHistory.ResponseTime = testResult.ResponseTime
@@ -174,7 +175,9 @@ func Update(shouldCommit bool) {
 			lastCommit := lib.LastCommit()
 			log.Println("Last commit", lastCommit)
 
-			if currentStatus != testResult.Status {
+			if currentStatus == testResult.Status {
+				log.Println("Status is the same", currentStatus, testResult.Status)
+			} else {
 				log.Println("Status changed from", currentStatus, "to", testResult.Status)
 				//hasDelta := false
 				issues, err := lib.GetIssues(client, owner, repo, slugName)
@@ -206,8 +209,8 @@ func Update(shouldCommit bool) {
 					}
 				}
 
-				//if testResult.Status != StatusUp && !expected {
-				if !expected {
+				if testResult.Status != StatusUp && !expected {
+					//if !expected {
 					if len(issues) > 0 {
 						log.Println("Issue already exists")
 					} else {
@@ -237,14 +240,37 @@ func Update(shouldCommit bool) {
 						}
 
 						log.Println("Opened and locked issue")
-
-						SendNotificationDownMessage(site, testResult, newIssue)
 					}
+				} else if len(issues) > 0 {
+					log.Println("UnLocking issue")
+					err = lib.UnlockIssue(client, owner, repo, issues[0].GetNumber())
+					if err != nil {
+						log.Println("Error unlocking issue", err)
+					}
+
+					commentMsg := CreateCommentMessage(owner, repo, lastCommit, issues[0], site)
+
+					err = lib.CreateComment(client, owner, repo, issues[0].GetNumber(), commentMsg)
+					if err != nil {
+						log.Println("Error creating comment", err)
+					}
+					log.Println("Comment created")
+
+					// Close the issue
+					_ = lib.CloseIssue(client, owner, repo, issues[0].GetNumber())
+
+					// Lock the issue
+					_ = lib.LockIssue(client, owner, repo, issues[0].GetNumber())
+				} else {
+					log.Println("No Relevant issue found")
 				}
 			}
 
 		}
 	}
+
+	// Git Push
+
 }
 
 func ServerCheck(site config.Site) (PerformanceTestResult, error) {

@@ -23,10 +23,16 @@ type EventMetadata struct {
 	ExpectedDegraded []string
 }
 
+var (
+	IssueStatusOpen   = "open"
+	IssueStatusClosed = "closed"
+	IssueStatusAll    = "all"
+)
+
 var ctx = context.Background()
 
 var EventOpt = &github.IssueListByRepoOptions{
-	State:     "all",
+	State:     IssueStatusAll,
 	Sort:      "created",
 	Direction: "desc",
 	Labels: []string{
@@ -70,7 +76,7 @@ func GetIssues(
 	slugName string,
 ) ([]*github.Issue, error) {
 	issues, _, err := client.Issues.ListByRepo(ctx, owner, repo, &github.IssueListByRepoOptions{
-		State:     "open",
+		State:     IssueStatusOpen,
 		Sort:      "created",
 		Direction: "desc",
 		Labels: []string{
@@ -165,5 +171,40 @@ func LockIssue(
 	issueNumber int,
 ) (err error) {
 	_, err = client.Issues.Lock(ctx, owner, repo, issueNumber, &github.LockIssueOptions{})
+	return
+}
+
+func UnlockIssue(
+	client *github.Client,
+	owner string,
+	repo string,
+	issueNumber int,
+) (err error) {
+	_, err = client.Issues.Unlock(ctx, owner, repo, issueNumber)
+	return
+}
+
+func CreateComment(
+	client *github.Client,
+	owner string,
+	repo string,
+	issueNumber int,
+	body string,
+) (err error) {
+	_, _, err = client.Issues.CreateComment(ctx, owner, repo, issueNumber, &github.IssueComment{
+		Body: &body,
+	})
+	return
+}
+
+func CloseIssue(
+	client *github.Client,
+	owner string,
+	repo string,
+	issueNumber int,
+) (err error) {
+	_, _, err = client.Issues.Edit(ctx, owner, repo, issueNumber, &github.IssueRequest{
+		State: &IssueStatusClosed,
+	})
 	return
 }
