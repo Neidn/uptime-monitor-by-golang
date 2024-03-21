@@ -24,6 +24,9 @@ go.work
 test/output
 .env
 history
+
+# Local testing
 .upptimerc.yml
 upptimerc.yml
 build
+README.md

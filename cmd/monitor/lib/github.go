@@ -23,6 +23,10 @@ type EventMetadata struct {
 	ExpectedDegraded []string
 }
 
+type GithubClient struct {
+	Client *github.Client
+}
+
 var (
 	IssueStatusOpen   = "open"
 	IssueStatusClosed = "closed"
@@ -31,16 +35,7 @@ var (
 
 var ctx = context.Background()
 
-var EventOpt = &github.IssueListByRepoOptions{
-	State:     IssueStatusAll,
-	Sort:      "created",
-	Direction: "desc",
-	Labels: []string{
-		"maintenance",
-	},
-}
-
-func GithubClient() (*github.Client, error) {
+func NewGithubClient() (githubClient *GithubClient, err error) {
 	token := config.GetToken()
 	if token == "" {
 		return nil, errors.New("token not found")
@@ -52,9 +47,11 @@ func GithubClient() (*github.Client, error) {
 	)
 	tokenClient := oauth2.NewClient(context.Background(), tokenService)
 
-	client := github.NewClient(tokenClient)
+	githubClient = &GithubClient{
+		Client: github.NewClient(tokenClient),
+	}
 
-	return client, nil
+	return githubClient, nil
 }
 
 func SendCommit(message string, name string, email string) {
@@ -69,13 +66,34 @@ func LastCommit() string {
 	return string(out)
 }
 
-func GetIssues(
-	client *github.Client,
+func SendPush() {
+	_ = exec.Command("git", "push").Run()
+}
+
+func (g *GithubClient) GetRepoReleases(
+	owner string,
+	repo string,
+) (releases []*github.RepositoryRelease, err error) {
+	opts := &github.ListOptions{
+		PerPage: 1,
+		Page:    1,
+	}
+
+	releases, _, err = g.Client.Repositories.ListReleases(
+		ctx,
+		owner,
+		repo,
+		opts,
+	)
+	return
+}
+
+func (g *GithubClient) GetIssues(
 	owner string,
 	repo string,
 	slugName string,
 ) ([]*github.Issue, error) {
-	issues, _, err := client.Issues.ListByRepo(ctx, owner, repo, &github.IssueListByRepoOptions{
+	issues, _, err := g.Client.Issues.ListByRepo(ctx, owner, repo, &github.IssueListByRepoOptions{
 		State:     IssueStatusOpen,
 		Sort:      "created",
 		Direction: "desc",
@@ -86,8 +104,20 @@ func GetIssues(
 	return issues, err
 }
 
-func CheckAndCloseMaintenanceEvents(client *github.Client, owner string, repo string) (ongoingEvents []OnGoingMaintenanceEvent, err error) {
-	events, resp, err := client.Issues.ListByRepo(
+func (g *GithubClient) CheckAndCloseMaintenanceEvents(
+	owner string,
+	repo string,
+) (ongoingEvents []OnGoingMaintenanceEvent, err error) {
+	EventOpt := &github.IssueListByRepoOptions{
+		State:     IssueStatusAll,
+		Sort:      "created",
+		Direction: "desc",
+		Labels: []string{
+			"maintenance",
+		},
+	}
+
+	events, resp, err := g.Client.Issues.ListByRepo(
 		context.Background(),
 		owner,
 		repo,
@@ -131,8 +161,7 @@ func CheckAndCloseMaintenanceEvents(client *github.Client, owner string, repo st
 	return
 }
 
-func CreateNewIssue(
-	client *github.Client,
+func (g *GithubClient) CreateNewIssue(
 	owner string,
 	repo string,
 	title string,
@@ -145,7 +174,7 @@ func CreateNewIssue(
 		Labels: &labels,
 	}
 
-	newIssue, _, err = client.Issues.Create(ctx, owner, repo, issue)
+	newIssue, _, err = g.Client.Issues.Create(ctx, owner, repo, issue)
 	if err != nil {
 		return nil, err
 	}
@@ -153,57 +182,71 @@ func CreateNewIssue(
 	return newIssue, nil
 }
 
-func AddAssignees(
-	client *github.Client,
+func (g *GithubClient) GetAllIssuesForSite(
+	owner string,
+	repo string,
+	slugName string,
+) (issues []*github.Issue, err error) {
+	issues, _, err = g.Client.Issues.ListByRepo(ctx, owner, repo, &github.IssueListByRepoOptions{
+		State:     IssueStatusAll,
+		Sort:      "created",
+		Direction: "desc",
+		Labels: []string{
+			"status",
+			slugName,
+		},
+		// Filter All
+		ListOptions: github.ListOptions{PerPage: 100},
+	})
+	return
+}
+
+func (g *GithubClient) AddAssignees(
 	owner string,
 	repo string,
 	issueNumber int,
 	assignees []string,
 ) (err error) {
-	_, _, err = client.Issues.AddAssignees(ctx, owner, repo, issueNumber, assignees)
+	_, _, err = g.Client.Issues.AddAssignees(ctx, owner, repo, issueNumber, assignees)
 	return
 }
 
-func LockIssue(
-	client *github.Client,
+func (g *GithubClient) LockIssue(
 	owner string,
 	repo string,
 	issueNumber int,
 ) (err error) {
-	_, err = client.Issues.Lock(ctx, owner, repo, issueNumber, &github.LockIssueOptions{})
+	_, err = g.Client.Issues.Lock(ctx, owner, repo, issueNumber, &github.LockIssueOptions{})
 	return
 }
 
-func UnlockIssue(
-	client *github.Client,
+func (g *GithubClient) UnlockIssue(
 	owner string,
 	repo string,
 	issueNumber int,
 ) (err error) {
-	_, err = client.Issues.Unlock(ctx, owner, repo, issueNumber)
+	_, err = g.Client.Issues.Unlock(ctx, owner, repo, issueNumber)
 	return
 }
 
-func CreateComment(
-	client *github.Client,
+func (g *GithubClient) CreateComment(
 	owner string,
 	repo string,
 	issueNumber int,
 	body string,
 ) (err error) {
-	_, _, err = client.Issues.CreateComment(ctx, owner, repo, issueNumber, &github.IssueComment{
+	_, _, err = g.Client.Issues.CreateComment(ctx, owner, repo, issueNumber, &github.IssueComment{
 		Body: &body,
 	})
 	return
 }
 
-func CloseIssue(
-	client *github.Client,
+func (g *GithubClient) CloseIssue(
 	owner string,
 	repo string,
 	issueNumber int,
 ) (err error) {
-	_, _, err = client.Issues.Edit(ctx, owner, repo, issueNumber, &github.IssueRequest{
+	_, _, err = g.Client.Issues.Edit(ctx, owner, repo, issueNumber, &github.IssueRequest{
 		State: &IssueStatusClosed,
 	})
 	return

@@ -38,6 +38,7 @@ const (
 )
 
 func Update(shouldCommit bool) {
+	hasDelta := false
 	log.Println("Update workflow started")
 
 	check := lib.HealthCheck()
@@ -54,13 +55,14 @@ func Update(shouldCommit bool) {
 	var defaultConfig config.UptimeConfig
 	defaultConfig.GetConfig()
 
-	client, err := lib.GithubClient()
+	//client, err := githubClient.GetGithubClient()
+	githubClient, err := lib.NewGithubClient()
 	if err != nil {
 		log.Println("Error getting github client", err)
 		return
 	}
 
-	ongoingEvents, err := lib.CheckAndCloseMaintenanceEvents(client, owner, repo)
+	ongoingEvents, err := githubClient.CheckAndCloseMaintenanceEvents(owner, repo)
 
 	if err != nil {
 		log.Println("Error checking and closing maintenance events", err)
@@ -93,7 +95,7 @@ func Update(shouldCommit bool) {
 		}
 
 		if siteHistory.StartTime != "" {
-			startTime, err = time.Parse(time.RFC3339, siteHistory.StartTime)
+			startTime, err = time.Parse(config.TimeFormat, siteHistory.StartTime)
 			if err != nil {
 				log.Println("Error parsing start time", err)
 				startTime = time.Now()
@@ -134,8 +136,8 @@ func Update(shouldCommit bool) {
 			siteHistory.Status = testResult.Status
 			siteHistory.Code = testResult.Result.HttpCode
 			siteHistory.ResponseTime = testResult.ResponseTime
-			siteHistory.LastUpdated = time.Now().Format(time.RFC3339)
-			siteHistory.StartTime = startTime.Format(time.RFC3339)
+			siteHistory.LastUpdated = time.Now().Format(config.TimeFormat)
+			siteHistory.StartTime = startTime.Format(config.TimeFormat)
 			siteHistory.Generator = fmt.Sprintf("%s %s", config.RepositoryName, config.Generator)
 
 			// Write the history
@@ -179,8 +181,8 @@ func Update(shouldCommit bool) {
 				log.Println("Status is the same", currentStatus, testResult.Status)
 			} else {
 				log.Println("Status changed from", currentStatus, "to", testResult.Status)
-				//hasDelta := false
-				issues, err := lib.GetIssues(client, owner, repo, slugName)
+				hasDelta = true
+				issues, err := githubClient.GetIssues(owner, repo, slugName)
 				if err != nil {
 					log.Println("Error getting issues", err)
 					continue
@@ -216,7 +218,7 @@ func Update(shouldCommit bool) {
 					} else {
 						log.Println("Creating issue")
 						title, body, labels := CreateIssueMessage(owner, repo, slugName, lastCommit, testResult, site)
-						newIssue, err := lib.CreateNewIssue(client, owner, repo, title, body, labels)
+						newIssue, err := githubClient.CreateNewIssue(owner, repo, title, body, labels)
 						if err != nil {
 							log.Println("Error creating issue", err)
 							continue
@@ -227,14 +229,14 @@ func Update(shouldCommit bool) {
 						// Add assignees
 						assignees := append(site.Assignees, defaultConfig.Assignees...)
 						if len(assignees) > 0 {
-							err = lib.AddAssignees(client, owner, repo, *newIssue.Number, assignees)
+							err = githubClient.AddAssignees(owner, repo, *newIssue.Number, assignees)
 							if err != nil {
 								log.Println("Error adding assignees", err)
 							}
 						}
 
 						// Lock the issue
-						err = lib.LockIssue(client, owner, repo, *newIssue.Number)
+						err = githubClient.LockIssue(owner, repo, *newIssue.Number)
 						if err != nil {
 							log.Println("Error locking issue", err)
 						}
@@ -243,24 +245,24 @@ func Update(shouldCommit bool) {
 					}
 				} else if len(issues) > 0 {
 					log.Println("UnLocking issue")
-					err = lib.UnlockIssue(client, owner, repo, issues[0].GetNumber())
+					err = githubClient.UnlockIssue(owner, repo, issues[0].GetNumber())
 					if err != nil {
 						log.Println("Error unlocking issue", err)
 					}
 
 					commentMsg := CreateCommentMessage(owner, repo, lastCommit, issues[0], site)
 
-					err = lib.CreateComment(client, owner, repo, issues[0].GetNumber(), commentMsg)
+					err = githubClient.CreateComment(owner, repo, issues[0].GetNumber(), commentMsg)
 					if err != nil {
 						log.Println("Error creating comment", err)
 					}
 					log.Println("Comment created")
 
 					// Close the issue
-					_ = lib.CloseIssue(client, owner, repo, issues[0].GetNumber())
+					_ = githubClient.CloseIssue(owner, repo, issues[0].GetNumber())
 
 					// Lock the issue
-					_ = lib.LockIssue(client, owner, repo, issues[0].GetNumber())
+					_ = githubClient.LockIssue(owner, repo, issues[0].GetNumber())
 				} else {
 					log.Println("No Relevant issue found")
 				}
@@ -270,6 +272,22 @@ func Update(shouldCommit bool) {
 	}
 
 	// Git Push
+	if false {
+		//if len(defaultConfig.Sites) > 0 {
+		lib.SendPush()
+	}
+
+	log.Println("Has delta: ", hasDelta)
+
+	if hasDelta {
+		GenerateSummary(
+			githubClient,
+			owner,
+			repo,
+			check,
+			defaultConfig,
+		)
+	}
 
 }
 

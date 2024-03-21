@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const TimeFormat = time.RFC3339
+
 const OwnerName = "Neidn"
 const MonitorRepositoryName = "uptime-monitor-by-golang"
 const RepositoryName = "uptime"
@@ -19,7 +21,10 @@ const NotificationDownMessageKey = "NOTIFICATION_DOWN_MESSAGE"
 const DefaultCommitMessage = "$PREFIX $SITE_NAME is $STATUS ($RESPONSE_CODE in $RESPONSE_TIME ms) [skip ci] [$REPOSITORY_NAME]"
 
 const UptimeRcYaml = ".uptimerc.yml"
+const ReadmeFile = "README.md"
 const HistoryYamlDir = "history"
+const DefaultStartStatusPageText = "<!-- start: status pages -->"
+const DefaultEndStatusPageText = "<!-- end: status pages -->"
 
 const GraphsCiSchedule = "0 0 * * *"
 const ResponseTimeCiSchedule = "0 23 * * *"

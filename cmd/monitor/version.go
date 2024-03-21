@@ -1,10 +1,8 @@
 package main
 
 import (
-	"context"
 	"github.com/Neidn/uptime-monitor-by-golang/cmd/monitor/lib"
 	"github.com/Neidn/uptime-monitor-by-golang/config"
-	"github.com/google/go-github/v59/github"
 	"log"
 )
 
@@ -15,27 +13,24 @@ func GetUptimeMonitorVersion() (string, error) {
 		return release, nil
 	}
 
-	client, err := lib.GithubClient()
+	githubClient, err := lib.NewGithubClient()
 	if err != nil {
 		log.Println(err)
 		return "", err
 	}
 
-	opts := &github.ListOptions{
-		PerPage: 1,
-		Page:    1,
-	}
-
-	repositoryReleases, _, err := client.Repositories.ListReleases(
-		context.Background(),
+	repositoryReleases, err := githubClient.GetRepoReleases(
 		config.OwnerName,
-		config.MonitorRepositoryName,
-		opts,
+		config.RepositoryName,
 	)
 
 	if err != nil {
 		log.Println(err)
 		return "", err
+	}
+
+	if len(repositoryReleases) == 0 {
+		return "", nil
 	}
 
 	return repositoryReleases[0].GetTagName(), nil
